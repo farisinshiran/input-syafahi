@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Aplikasi Penilaian Ujian</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
-  <script src="/_sdk/element_sdk.js"></script>
-  <script src="/_sdk/data_sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -423,7 +422,7 @@
   let isSubmitting    = false;
 
   // ── Element SDK ──
-  window.elementSdk.init({
+  init({
     defaultConfig,
     onConfigChange: async (config) => {
       document.getElementById('app-title').textContent          = config.app_title    || defaultConfig.app_title;
@@ -435,24 +434,24 @@
       const primaryAction = config.primary_action   || defaultConfig.primary_action;
       const secondAction  = config.secondary_action || defaultConfig.secondary_action;
 
-      document.body.style.background = `linear-gradient(135deg, ${bgColor} 0%, ${adjustColor(bgColor, -10)} 100%)`;
+      // document.body.style.background = `linear-gradient(135deg, ${bgColor} 0%, ${adjustColor(bgColor, -10)} 100%)`;
       document.querySelectorAll('.card-glass').forEach(el => { el.style.backgroundColor = surfaceColor; });
       document.querySelectorAll('.score-badge').forEach(el => {
         el.style.background = `linear-gradient(135deg, ${secondAction} 0%, ${primaryAction} 100%)`;
       });
     },
-    mapToCapabilities: (config) => ({
-      recolorables: [
-        { get: () => config.background_color || defaultConfig.background_color, set: (v) => window.elementSdk.setConfig({ background_color: v }) },
-        { get: () => config.surface_color    || defaultConfig.surface_color,    set: (v) => window.elementSdk.setConfig({ surface_color: v })    },
-        { get: () => config.text_color       || defaultConfig.text_color,       set: (v) => window.elementSdk.setConfig({ text_color: v })       },
-        { get: () => config.primary_action   || defaultConfig.primary_action,   set: (v) => window.elementSdk.setConfig({ primary_action: v })   },
-        { get: () => config.secondary_action || defaultConfig.secondary_action, set: (v) => window.elementSdk.setConfig({ secondary_action: v }) }
-      ],
-      borderables: [],
-      fontEditable: undefined,
-      fontSizeable: undefined
-    }),
+    // mapToCapabilities: (config) => ({
+    //   recolorables: [
+    //     { get: () => config.background_color || defaultConfig.background_color, set: (v) => setConfig({ background_color: v }) },
+    //     { get: () => config.surface_color    || defaultConfig.surface_color,    set: (v) => setConfig({ surface_color: v })    },
+    //     { get: () => config.text_color       || defaultConfig.text_color,       set: (v) => setConfig({ text_color: v })       },
+    //     { get: () => config.primary_action   || defaultConfig.primary_action,   set: (v) => setConfig({ primary_action: v })   },
+    //     { get: () => config.secondary_action || defaultConfig.secondary_action, set: (v) => setConfig({ secondary_action: v }) }
+    //   ],
+    //   borderables: [],
+    //   fontEditable: undefined,
+    //   fontSizeable: undefined
+    // }),
     mapToEditPanelValues: (config) => new Map([
       ['app_title',     config.app_title    || defaultConfig.app_title],
       ['tahsin_label',  config.tahsin_label  || defaultConfig.tahsin_label],
@@ -460,19 +459,6 @@
     ])
   });
 
-  // ── Helper: adjust color brightness ──
-  function adjustColor(hex, percent) {
-    const num = parseInt(hex.replace('#', ''), 16);
-    const amt = Math.round(2.55 * percent);
-    const R = (num >> 16) + amt;
-    const G = (num >> 8 & 0x00FF) + amt;
-    const B = (num & 0x0000FF) + amt;
-    return '#' + (0x1000000
-      + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000
-      + (G < 255 ? G < 1 ? 0 : G : 255) * 0x100
-      + (B < 255 ? B < 1 ? 0 : B : 255)
-    ).toString(16).slice(1);
-  }
 
   // ── Smart Score (tidak diubah) ──
   function calculateSmartScore(values) {
@@ -502,11 +488,23 @@
     }
   };
 
-  async function initDataSdk() {
-    const result = await window.dataSdk.init(dataHandler);
-    if (!result.isOk) showToast('Gagal menginisialisasi penyimpanan data', 'error');
+const SUPABASE_URL = 'https://xxxxxxxx.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzb2N3eXVwbWpnZ29ucGt0Y3N6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwNjM5ODcsImV4cCI6MjA4NjYzOTk4N30.IARvnvqck8pJEjYYVfMGoDzQDNP7cg_oKfE5eHte_0w';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Load data awal
+async function loadData() {
+  const { data, error } = await db
+    .from('penilaian')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (!error) {
+    allRecords = data;
+    updateRecordCount();
+    renderDataList();
   }
-  initDataSdk();
+}
+loadData();
 
   // ── Tab switching ──
   function switchTab(tab) {
@@ -694,8 +692,19 @@
       created_at:  new Date().toISOString()
     };
 
-    const result = await window.dataSdk.create(record);
+// Ganti: const result = await window.dataSdk.create(record);
+// Dengan:
+const { error } = await db
+  .from('penilaian')
+  .insert([record]);
 
+if (!error) {
+  showToast('Nilai berhasil disimpan!', 'success');
+  resetForm();
+  loadData(); // refresh data
+} else {
+  showToast('Gagal menyimpan nilai: ' + error.message, 'error');
+}
     if (result.isOk) {
       showToast('Nilai berhasil disimpan!', 'success');
       resetForm();
@@ -757,9 +766,9 @@
     const existingCards = new Map([...container.children].map(el => [el.dataset.recordId, el]));
 
     filteredRecords.forEach(record => {
-      if (existingCards.has(record.__backendId)) {
-        updateDataCard(existingCards.get(record.__backendId), record);
-        existingCards.delete(record.__backendId);
+      if (existingCards.has(record.id)) {
+        updateDataCard(existingCards.get(record.id), record);
+        existingCards.delete(record.id);
       } else {
         container.appendChild(createDataCard(record));
       }
@@ -771,7 +780,7 @@
   function createDataCard(record) {
     const card = document.createElement('div');
     card.className = 'card-glass rounded-2xl p-5 shadow-lg border border-orange-100 animate-fade';
-    card.dataset.recordId = record.__backendId;
+    card.dataset.recordId = record.id;
     updateDataCard(card, record);
     return card;
   }
@@ -825,7 +834,7 @@
             <div class="text-2xl font-bold text-orange-800">${record.total_score}</div>
             <div class="text-xs text-orange-600">Nilai Akhir</div>
           </div>
-          <button onclick="showDeleteModal('${record.__backendId}')" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
+          <button onclick="showDeleteModal('${record.id}')" class="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -854,14 +863,26 @@
 
   async function confirmDelete() {
     if (!deleteTargetId) return;
-    const record = allRecords.find(r => r.__backendId === deleteTargetId);
+    const record = allRecords.find(r => r.id === deleteTargetId);
     if (!record) return;
 
     const btn = document.getElementById('confirm-delete-btn');
     btn.disabled = true;
     btn.textContent = 'Menghapus...';
 
-    const result = await window.dataSdk.delete(record);
+// Ganti: const result = await window.dataSdk.delete(record);
+// Dengan:
+const { error } = await db
+  .from('penilaian')
+  .delete()
+  .eq('id', record.id);
+
+if (!error) {
+  showToast('Data berhasil dihapus', 'success');
+  loadData(); // refresh data
+} else {
+  showToast('Gagal menghapus data', 'error');
+}
     if (result.isOk) {
       showToast('Data berhasil dihapus', 'success');
     } else {
